@@ -9,7 +9,7 @@ import datetime
 import pickle 
 import time
 import os
-
+#这个 sliding_varlen 函数的目的可能是处理具有不同长度的时间序列数据，并计算每个批次数据的熵
 def sliding_varlen(data,batch_size):#定义了一个名为 sliding_varlen 的函数，它接受两个参数：data 和 batch_size。函数内部定义了两个辅助函数：timedelta 和 get_entropy
 	def timedelta(time1,time2):#嵌套函数，它接受两个参数：time1 和 time2。
 		t1 = datetime.datetime.strptime(str(time1),'%a %b %d %H:%M:%S %z %Y')#使用 datetime.strptime 方法将字符串 time1 转换为 datetime 对象 t1，按照给定的格式 '%a %b %d %H:%M:%S %z %Y' 解析。
@@ -25,51 +25,53 @@ def sliding_varlen(data,batch_size):#定义了一个名为 sliding_varlen 的函
 			p = float(x[x == x_value].shape[0]) / x.shape[0]#计算当前值 x_value 在数组 x 中出现的概率 p。
 			logp = np.log2(p)#计算概率 p 的以2为底的对数 logp
 			ent -= p * logp#更新熵 ent，减去当前值的概率乘以其对数。
-		return ent
+		return ent#返回计算得到的熵值。
 
 #################################################################################
+	#这段代码的主要目的是对一个名为 data 的数据集进行处理，将其按照时间戳进行排序，并提取出时间相关的特征
 	# 1、sort the raw data in chronological order
-	timestamp = []
-	hour = []
-	day = []
-	week = []
-	hour_48 = []
-	for i in range(len(data)):
-		times = data['time'].values[i]
-		timestamp.append(time.mktime(time.strptime(times, '%a %b %d %H:%M:%S %z %Y')))
-		t = datetime.datetime.strptime(times,'%a %b %d %H:%M:%S %z %Y')
-		year = int(t.strftime('%Y'))
-		day_i = int(t.strftime('%j'))
-		week_i = int(t.strftime('%w'))
+	timestamp = [] #初始化一个空列表 timestamp，用于存储时间戳。
+	hour = [] #初始化一个空列表 hour，用于存储小时信息。
+	day = [] #初始化一个空列表 day，用于存储一年中的第几天。
+	week = [] #初始化一个空列表 week，用于存储一周中的第几天。
+	hour_48 = [] #初始化一个空列表 hour_48，用于存储调整后的小时信息，用于区分周末和工作日。
+	for i in range(len(data)): #遍历数据集 data 的每一行。
+		times = data['time'].values[i] #从数据集中提取第 i 行的 'time' 列的值。
+		timestamp.append(time.mktime(time.strptime(times, '%a %b %d %H:%M:%S %z %Y'))) #将时间字符串 times 转换为时间结构，然后转换为时间戳，并将其添加到 timestamp 列表中。
+		t = datetime.datetime.strptime(times,'%a %b %d %H:%M:%S %z %Y') #将时间字符串 times 转换为 datetime 对象。
+		#datetime.strptime 方法能够解析符合特定格式的日期和时间字符串，将其转换为 datetime 对象。
+		year = int(t.strftime('%Y')) #从 datetime 对象中提取年份，并转换为整数。
+		day_i = int(t.strftime('%j')) #从 datetime 对象中提取一年中的第几天，并转换为整数。
+		week_i = int(t.strftime('%w')) #
 		hour_i = int(t.strftime('%H'))
+		#初始化 hour_i_48 为当前小时 hour_i
 		hour_i_48 = hour_i
-		if week_i == 0 or week_i == 6:
-			hour_i_48 = hour_i + 24
+		if week_i == 0 or week_i == 6: #检查当前日期是否为周六（0）或周日（6）。
+			hour_i_48 = hour_i + 24 #如果是周末，则将小时数增加24，以区分周末和工作日。
 
-		if year == 2013:
+		if year == 2013: #如果是2013年，则将 day_i 增加366，因为2013年不是闰年，这里可能是为了某种特定的处理。
 			day_i = day_i + 366
-		day.append(day_i)
-		
-		hour.append(hour_i)
+		day.append(day_i) #将计算后的 day_i 添加到 day 列表中。
+		hour.append(hour_i) 
 		hour_48.append(int(hour_i_48))
 		week.append(week_i)
 
-	data['timestamp'] = timestamp
+	data['timestamp'] = timestamp #将 timestamp 列表添加到数据集 data 中，作为新的列。
 	data['hour'] = hour
 	data['day'] = day
 	data['week'] = week
 	data['hour_48'] = hour_48
 
-	data.sort_values(by = 'timestamp',inplace=True,ascending = True)
+	data.sort_values(by = 'timestamp',inplace=True,ascending = True) #按照 timestamp 列的值对数据集 data 进行排序，inplace=True 表示在原数据集上进行排序，ascending=True 表示按升序排序。
 
 #################################################################################
 	# 2、filter users and POIs 
-	
+	#这段代码的主要目的是对数据集 data 进行过滤和处理，以筛选出活跃的用户和兴趣点（POIs），并最终生成一个包含POI类别信息的张量 cat_candidate。
 	'''
-	thr_venue = 1
-	thr_user = 20
-	user_venue = data.loc[:,['userid','venueid']]
-	#user_venue = user_venue.drop_duplicates()
+	thr_venue = 1  # 设置阈值。通过设置阈值，可以专注于那些足够活跃的用户和POIs。例如，thr_venue 为1意味着只考虑至少被访问两次的POIs。
+	thr_user = 20  #业务需求可能需要关注那些达到一定活跃度的用户和POIs。例如，一个商家可能只对那些至少有20个用户访问过的POIs感兴趣。
+	user_venue = data.loc[:,['userid','venueid']]  # 提取用户ID和POI ID
+	#user_venue = user_venue.drop_duplicates()  
 	
 	venue_count = user_venue['venueid'].value_counts()
 	venue = venue_count[venue_count.values>thr_venue]
