@@ -10,21 +10,21 @@ import pickle
 import time
 import os
 
-def sliding_varlen(data,batch_size):
-	def timedelta(time1,time2):
-		t1 = datetime.datetime.strptime(str(time1),'%a %b %d %H:%M:%S %z %Y')
+def sliding_varlen(data,batch_size):#定义了一个名为 sliding_varlen 的函数，它接受两个参数：data 和 batch_size。函数内部定义了两个辅助函数：timedelta 和 get_entropy
+	def timedelta(time1,time2):#嵌套函数，它接受两个参数：time1 和 time2。
+		t1 = datetime.datetime.strptime(str(time1),'%a %b %d %H:%M:%S %z %Y')#使用 datetime.strptime 方法将字符串 time1 转换为 datetime 对象 t1，按照给定的格式 '%a %b %d %H:%M:%S %z %Y' 解析。
 		t2 = datetime.datetime.strptime(str(time2),'%a %b %d %H:%M:%S %z %Y')
-		delta = t1-t2
-		time_delta = datetime.timedelta(days = delta.days,seconds = delta.seconds).total_seconds()
-		return time_delta/3600
+		delta = t1-t2#计算两个 datetime 对象 t1 和 t2 之间的时间差。
+		time_delta = datetime.timedelta(days = delta.days,seconds = delta.seconds).total_seconds()#创建一个新的 timedelta 对象，包含 delta.days 天和 delta.seconds 秒，然后调用 total_seconds() 方法将其转换为总秒数。
+		return time_delta/3600#将总秒数转换为小时数（除以3600）并返回。
 	
-	def get_entropy(x):
-		x_value_list = set([x[i] for i in range(x.shape[0])])
-		ent = 0.0
-		for x_value in x_value_list:
-			p = float(x[x == x_value].shape[0]) / x.shape[0]
-			logp = np.log2(p)
-			ent -= p * logp
+	def get_entropy(x):#在 sliding_varlen 函数内部定义了一个名为 get_entropy 的嵌套函数，它接受一个参数：x。
+		x_value_list = set([x[i] for i in range(x.shape[0])])#创建一个包含 x 数组中所有唯一值的集合 x_value_list。
+		ent = 0.0#初始化熵 ent 为0.0。
+		for x_value in x_value_list:#遍历集合 x_value_list 中的每个元素。
+			p = float(x[x == x_value].shape[0]) / x.shape[0]#计算当前值 x_value 在数组 x 中出现的概率 p。
+			logp = np.log2(p)#计算概率 p 的以2为底的对数 logp
+			ent -= p * logp#更新熵 ent，减去当前值的概率乘以其对数。
 		return ent
 
 #################################################################################
