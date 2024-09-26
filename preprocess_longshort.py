@@ -129,16 +129,16 @@ def sliding_varlen(data,batch_size):#定义了一个名为 sliding_varlen 的函
 	print('vocab_size_cat: ',vocab_size_cat)
 	print('vocab_size_user: ',vocab_size_user)
           #初始化多个空列表，用于存储训练集和测试集的特征、标签、时间、用户ID和索引。
-	train_x  = []
-	train_x_cat  = []
-	train_y = []
-	train_hour = []
-	train_userid = []
-	train_indexs = []
+	train_x  = []  初始化一个空列表 train_x，可能用于存储训练集中的特征数据。
+	train_x_cat  = []  初始化一个空列表 train_x_cat，可能用于存储训练集中的分类特征数据。
+	train_y = []  初始化一个空列表 train_y，可能用于存储训练集中的目标变量或标签。
+	train_hour = []  初始化一个空列表 train_hour，可能用于存储训练集中的时间数据（小时）。
+	train_userid = []  初始化一个空列表 train_userid，可能用于存储训练集中的用户ID。
+	train_indexs = []   初始化一个空列表 train_indexs，可能用于存储训练集中的索引
 
 # the hour and week to be predicted
-	train_hour_pre = []
-	train_week_pre = []
+	train_hour_pre = []  初始化一个空列表 train_hour_pre，可能用于存储预测时使用的训练集小时数据。
+	train_week_pre = []   初始化一个空列表 train_week_pre，可能用于存储预测时使用的训练集周数据。
 
 
 	test_x  = []
@@ -153,19 +153,18 @@ def sliding_varlen(data,batch_size):#定义了一个名为 sliding_varlen 的函
 	test_week_pre = []
 
 
-	long_term = {}
+	long_term = {}       初始化一个空字典 long_term，可能用于存储长期特征。
 
-	long_term_feature = []
-
-	data_train = {}
-	train_idx = {}
+	long_term_feature = []   初始化一个空列表 long_term_feature，可能用于存储长期特征。
+	data_train = {}  初始化一个空字典 data_train，可能用于存储训练集的相关信息。
+	train_idx = {}  
 	data_test = {}
-	test_idx = {}
+	test_idx = {} 初始化一个空字典 test_idx，可能用于存储测试集的索引信息。
 
-	data_train['datainfo'] = {'size_poi':vocab_size_poi+1,'size_cat':vocab_size_cat+1,'size_user':vocab_size_user+1} 
+	data_train['datainfo'] = {'size_poi':vocab_size_poi+1,'size_cat':vocab_size_cat+1,'size_user':vocab_size_user+1} 在 data_train 字典中添加一个键 datainfo，其值为另一个字典，包含三个键：size_poi、size_cat 和 size_user，分别表示兴趣点（POI）的词汇大小加1、分类特征的词汇大小加1和用户ID的词汇大小加1。
 	
-	len_session = 20
-	user_lastid = {}
+	len_session = 20  定义一个变量 len_session 并赋值为20，可能表示会话的长度或某个特定的序列长度。
+	user_lastid = {}  初始化一个空字典 user_lastid，可能用于存储每个用户的最后一个ID。
 #################################################################################
 	# split data
 
