@@ -71,64 +71,64 @@ def sliding_varlen(data,batch_size):#定义了一个名为 sliding_varlen 的函
 	thr_venue = 1  # 设置阈值。通过设置阈值，可以专注于那些足够活跃的用户和POIs。例如，thr_venue 为1意味着只考虑至少被访问两次的POIs。
 	thr_user = 20  #业务需求可能需要关注那些达到一定活跃度的用户和POIs。例如，一个商家可能只对那些至少有20个用户访问过的POIs感兴趣。
 	user_venue = data.loc[:,['userid','venueid']]  # 提取用户ID和POI ID
-	#user_venue = user_venue.drop_duplicates()  
+	#user_venue = user_venue.drop_duplicates()  #这行代码被注释掉了，如果启用，它会删除user_venue中的重复行。
 	
-	venue_count = user_venue['venueid'].value_counts()
-	venue = venue_count[venue_count.values>thr_venue]
-	venue_index =  venue.index
-	data = data[data['venueid'].isin(venue_index)]
-	user_venue = user_venue[user_venue['venueid'].isin(venue_index)]
-	del venue_count,venue,venue_index
+	venue_count = user_venue['venueid'].value_counts() #计算每个POI的访问次数。
+	venue = venue_count[venue_count.values>thr_venue] #筛选出访问次数超过阈值thr_venue的POIs。
+	venue_index =  venue.index #：获取筛选出的POIs的索引。
+	data = data[data['venueid'].isin(venue_index)] #在原始数据集中只保留那些POI ID在venue_index中的行。
+	user_venue = user_venue[user_venue['venueid'].isin(venue_index)] #在用户-POI数据集中只保留那些POI ID在venue_index中的行。
+	del venue_count,venue,venue_index #删除不再需要的变量以释放内存。
 	
-	#user_venue = user_venue.drop_duplicates()
-	user_count = user_venue['userid'].value_counts()
-	user = user_count[user_count.values>thr_user]
-	user_index = user.index
-	data = data[data['userid'].isin(user_index)]
-	user_venue = user_venue[user_venue['userid'].isin(user_index)]
-	del user_count,user,user_index
+	#user_venue = user_venue.drop_duplicates() 这行代码被注释掉了，如果启用，它会删除user_venue中的重复行。
+	user_count = user_venue['userid'].value_counts() 计算每个用户的访问次数
+	user = user_count[user_count.values>thr_user] 筛选出访问次数超过阈值thr_user的用户。
+	user_index = user.index 获取筛选出的用户索引。
+	data = data[data['userid'].isin(user_index)] 在原始数据集中只保留那些用户ID在user_index中的行。
+	user_venue = user_venue[user_venue['userid'].isin(user_index)] 在用户-POI数据集中只保留那些用户ID在user_index中的行。
+	del user_count,user,user_index  删除不再需要的变量以释放内存。
 	
-	user_venue = user_venue.drop_duplicates()
-	user_count = user_venue['userid'].value_counts()
-	user = user_count[user_count.values>1]
-	user_index = user.index
-	data = data[data['userid'].isin(user_index)]
-	del user_count,user,user_index
+	user_venue = user_venue.drop_duplicates() 删除user_venue中的重复行。
+	user_count = user_venue['userid'].value_counts() 再次计算每个用户的访问次数。
+	user = user_count[user_count.values>1] 筛选出访问次数超过1次的用户。
+	user_index = user.index 获取筛选出的用户索引。
+	data = data[data['userid'].isin(user_index)]  在原始数据集中只保留那些用户ID在user_index中的行。
+	del user_count,user,user_index  #删除不再需要的变量以释放内存。
 	
 	'''
-	data['userid'] = data['userid'].rank(method='dense').values
-	data['userid'] = data['userid'].astype(int)
-	data['venueid'] =data['venueid'].rank(method='dense').values
-	data['userid'] = data['userid'].astype(int)
-	for venueid,group in data.groupby('venueid'):
-		indexs = group.index
-		if len(set(group['catid'].values))>1:
-			for i in range(len(group)):
-				data.loc[indexs[i],'catid'] = group.loc[indexs[0]]['catid']
+	data['userid'] = data['userid'].rank(method='dense').values 为userid字段中的每个值分配一个排名，使用dense方法，意味着排名之间的差距总是1，即使有相同的值
+	data['userid'] = data['userid'].astype(int) 将userid字段的数据类型转换为整数。
+	data['venueid'] =data['venueid'].rank(method='dense').values 为venueid字段中的每个值分配一个排名。
+	data['userid'] = data['userid'].astype(int) 这里应该是一个错误，因为上一行代码已经将userid转换为整数了，这行代码实际上将venueid的排名结果赋值给了userid，并将数据类型转换为整数。
+	for venueid,group in data.groupby('venueid'): 按venueid对数据进行分组。
+		indexs = group.index 获取当前分组的索引。
+		if len(set(group['catid'].values))>1:检查当前分组中catid的唯一值数量是否大于1。
+			for i in range(len(group)): 遍历当前分组的每一行。
+				data.loc[indexs[i],'catid'] = group.loc[indexs[0]]['catid'] 如果当前分组的catid值不唯一，那么将当前行的catid设置为该分组第一行的catid值。
 	
-	data = data.drop_duplicates()
-	data['catid'] =data['catid'].rank(method='dense').values
+	data = data.drop_duplicates() 删除数据集中的重复行。
+	data['catid'] =data['catid'].rank(method='dense').values 为catid字段中的每个值分配一个排名。
 	
 #################################################################################
-	poi_cat = data[['venueid','catid']]
-	poi_cat = poi_cat.drop_duplicates()
-	poi_cat = poi_cat.sort_values(by = 'venueid')
-	cat_candidate = torch.Tensor(poi_cat['catid'].values)
+	poi_cat = data[['venueid','catid']] 从数据集中提取venueid和catid两列，创建一个新的DataFrame。
+	poi_cat = poi_cat.drop_duplicates() 删除poi_cat中的重复行。
+	poi_cat = poi_cat.sort_values(by = 'venueid') 按照venueid对poi_cat进行排序。
+	cat_candidate = torch.Tensor(poi_cat['catid'].values) 将poi_cat中的catid列的值转换为PyTorch的Tensor对象。
 
-	with open('cat_candidate.pk','wb') as f:
+	with open('cat_candidate.pk','wb') as f:  使用pickle模块将cat_candidate Tensor对象序列化并保存到前面打开的文件中。
 		pickle.dump(cat_candidate,f)
 
 	# 3、split data into train set and test set.
 	#    extract features of each session for classification
 
-	vocab_size_poi = int(max(data['venueid'].values))
-	vocab_size_cat = int(max(data['catid'].values))
-	vocab_size_user = int(max(data['userid'].values))
-
+	vocab_size_poi = int(max(data['venueid'].values)) 计算POI（兴趣点）的最大ID值，用于确定POI词汇表的大小。
+	vocab_size_cat = int(max(data['catid'].values))  计算类别（catid）的最大ID值，用于确定类别词汇表的大小。
+	vocab_size_user = int(max(data['userid'].values)) 计算用户（userid）的最大ID值，用于确定用户词汇表的大小。
+          #打印POI、类别和用户的词汇表大小。
 	print('vocab_size_poi: ',vocab_size_poi)
 	print('vocab_size_cat: ',vocab_size_cat)
 	print('vocab_size_user: ',vocab_size_user)
-
+          #初始化多个空列表，用于存储训练集和测试集的特征、标签、时间、用户ID和索引。
 	train_x  = []
 	train_x_cat  = []
 	train_y = []
