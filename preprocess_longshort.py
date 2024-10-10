@@ -167,22 +167,23 @@ def sliding_varlen(data,batch_size):#定义了一个名为 sliding_varlen 的函
 	user_lastid = {}  初始化一个空字典 user_lastid，可能用于存储每个用户的最后一个ID。
 #################################################################################
 	# split data
+        
 
-	for uid, group in data.groupby('userid'):
-		data_train[uid] = {}
-		data_test[uid] = {}
-		user_lastid[uid] = []
-		inds_u = group.index.values
-		split_ind = int(np.floor(0.8*len(inds_u)))
-		train_inds = inds_u[:split_ind]
-		test_inds = inds_u[split_ind:]
+	for uid, group in data.groupby('userid'): 遍历数据集中的每个用户（userid）。
+		data_train[uid] = {} 初始化一个字典来存储训练数据。
+		data_test[uid] = {} 初始化一个字典来存储测试数据。
+		user_lastid[uid] = [] 初始化一个列表来存储用户最后访问的ID。
+		inds_u = group.index.values 获取当前用户的所有数据索引。
+		split_ind = int(np.floor(0.8*len(inds_u))) 计算分割点，将80%的数据用作训练集。
+		train_inds = inds_u[:split_ind] 分割出训练集的索引。
+		test_inds = inds_u[split_ind:]  分割出测试集的索引。
 
 	#get the features of POIs for user uid
 		#long_term_feature.append(get_features(group.loc[train_inds]))
 
-		long_term[uid] = {}
+		long_term[uid] = {}  初始化一个字典来存储长期特征。
 		'''
-		long_term[uid]['loc'] = []
+		long_term[uid]['loc'] = [] 
 		long_term[uid]['hour'] = []
 		long_term[uid]['week'] = []
 		long_term[uid]['category'] = []
@@ -193,140 +194,138 @@ def sliding_varlen(data,batch_size):#定义了一个名为 sliding_varlen 的函
 		long_term[uid]['week'].append(lt_data['week'].values)
 		long_term[uid]['category'].append(lt_data['catid'].values)
 		'''
-		lt_data = group.loc[train_inds]
-		long_term[uid]['loc'] = torch.LongTensor(lt_data['venueid'].values).cuda()
-		long_term[uid]['hour'] = torch.LongTensor(lt_data['hour'].values).cuda()
-		long_term[uid]['week'] = torch.LongTensor(lt_data['week'].values).cuda()
-		long_term[uid]['category'] = torch.LongTensor(lt_data['catid'].values).cuda()
-	#split the long sessions to some short ones with len_session = 20
-
-		train_inds_split = []
-		num_session_train =int(len(train_inds)//(len_session))
-		for i in range(num_session_train):
-			train_inds_split.append(train_inds[i*len_session:(i+1)*len_session])
-		if num_session_train<len(train_inds)/len_session:
-			train_inds_split.append(train_inds[-len_session:])
+		lt_data = group.loc[train_inds]  选取训练集的数据。
+		long_term[uid]['loc'] = torch.LongTensor(lt_data['venueid'].values).cuda() 提取训练集中的位置特征，并转换为张量，然后移动到GPU。
+		long_term[uid]['hour'] = torch.LongTensor(lt_data['hour'].values).cuda() 提取训练集中的小时特征，并转换为张量，然后移动到GPU。
+		long_term[uid]['week'] = torch.LongTensor(lt_data['week'].values).cuda() 提取训练集中的周特征，并转换为张量，然后移动到GPU。
+		long_term[uid]['category'] = torch.LongTensor(lt_data['catid'].values).cuda() 提取训练集中的类别特征，并转换为张量，然后移动到GPU。
+	#split the long sessions to some short ones with len_session = 20 
+目的是将用户的长期会话（long sessions）分割成多个短期会话（short sessions），每个短期会话的长度由变量 len_session 定义，这里设置为20。这样做的原因可能是为了模拟用户在短时间内的行为模式，这在某些推荐系统或行为预测模型中是很常见的。
+		train_inds_split = [] 初始化一个列表来存储分割后的训练集索引。
+		num_session_train =int(len(train_inds)//(len_session)) 计算可以分割成多少个长度为len_session的训练集。
+		for i in range(num_session_train): 遍历每个分割的测试集
+			train_inds_split.append(train_inds[i*len_session:(i+1)*len_session]) 将分割后的训练集索引添加到列表中
+		if num_session_train<len(train_inds)/len_session: 如果训练集的最后一个分割不完整，则添加剩余的索引。
+			train_inds_split.append(train_inds[-len_session:]) 
 		
-		train_id = list(range(len(train_inds_split))) 
+		train_id = list(range(len(train_inds_split)))  创建训练集的ID列表
 
-		test_inds_split = []
-		num_session_test = int(len(test_inds)//(len_session))
-		for i in range(num_session_test):
-			test_inds_split.append(test_inds[i*len_session:(i+1)*len_session])
-		if num_session_test<len(test_inds)/len_session:
+		test_inds_split = [] 初始化一个列表来存储分割后的测试集索引。
+		num_session_test = int(len(test_inds)//(len_session)) 计算可以分割成多少个长度为len_session的测试集。
+		for i in range(num_session_test): 遍历每个分割的测试集。
+			test_inds_split.append(test_inds[i*len_session:(i+1)*len_session]) 将分割后的测试集索引添加到列表中。
+		if num_session_test<len(test_inds)/len_session: 如果测试集的最后一个分割不完整，则添加剩余的索引。
 			test_inds_split.append(test_inds[-len_session:])
 		
-		test_id = list(range(len(test_inds_split)+len(train_inds_split)))[-len(test_inds_split):]
+		test_id = list(range(len(test_inds_split)+len(train_inds_split)))[-len(test_inds_split):] 创建测试集的ID列表。
 
-		train_idx[uid] = train_id[1:]
-		test_idx[uid] = test_id
-
-		for ind in train_id:
+		train_idx[uid] = train_id[1:] 为当前用户设置训练集索引，跳过第一个ID。
+		test_idx[uid] = test_id 为当前用户设置测试集索引
+ 
+		for ind in train_id: 遍历训练集ID。
 
 		#generate data for comparative methods such as deepmove
-
-			if ind == 0:
+                这段代码是用于为比较方法（如DeepMove等）生成数据的Python脚本
+			if ind == 0: 如果当前的索引 ind 为0，跳过当前循环迭代。
 				continue
 
-			data_train[uid][ind] = {}
-			history_ind =[]
-			for i in range(ind):
-				history_ind.extend(train_inds_split[i])
-			whole_ind = []
-			whole_ind.extend(history_ind)
-			whole_ind.extend(train_inds_split[ind])
+			data_train[uid][ind] = {} 为当前用户和当前索引创建一个空字典，用于存储训练数据。
+			history_ind =[] 初始化一个空列表，用于存储用户的历史会话索引。
+			for i in range(ind): 遍历从0到当前索引 ind 的所有索引。
+				history_ind.extend(train_inds_split[i]) 将第i个会话的索引添加到历史会话索引列表中。
+			whole_ind = [] 初始化一个空列表，用于存储整个会话的索引。
+			whole_ind.extend(history_ind) 将历史会话索引添加到整个会话索引列表中。
+			whole_ind.extend(train_inds_split[ind]) 将当前会话的索引添加到整个会话索引列表中。
 
-			whole_data = group.loc[whole_ind]
+			whole_data = group.loc[whole_ind] 根据整个会话的索引，从原始数据中选取相应的数据。
+			loc = whole_data['venueid'].values[:-1] 提取整个会话中的位置ID，并去掉最后一个位置ID。
+			tim = whole_data['hour'].values[:-1]  提取整个会话中的小时信息，并去掉最后一个小时
+			target = group.loc[train_inds_split[ind][1:]]['venueid'].values 提取当前会话中下一个位置ID作为目标位置
 
-			loc = whole_data['venueid'].values[:-1]
-			tim = whole_data['hour'].values[:-1]
-			target = group.loc[train_inds_split[ind][1:]]['venueid'].values
-
-			#loc = group_i['venueid'].values[:-1]
+			#loc = group_i['venueid'].values[:-1] 
 			#tim = get_day(group_i['time'].values)[1][:-1]
 			#target = group_i['venueid'].values[-10:]
 
-			data_train[uid][ind]['loc'] = torch.LongTensor(loc).unsqueeze(1)
-			data_train[uid][ind]['tim'] = torch.LongTensor(tim).unsqueeze(1)
-			data_train[uid][ind]['target'] = torch.LongTensor(target)
+			data_train[uid][ind]['loc'] = torch.LongTensor(loc).unsqueeze(1) 将位置ID转换为张量，并增加一个维度，存储在训练数据中。
+			data_train[uid][ind]['tim'] = torch.LongTensor(tim).unsqueeze(1) 将小时信息转换为张量，并增加一个维度，存储在训练数据中
+			data_train[uid][ind]['target'] = torch.LongTensor(target) 将目标位置ID转换为张量，存储在训练数据中。
 
-			user_lastid[uid].append(loc[-1])
+			user_lastid[uid].append(loc[-1]) 将当前会话的最后一个位置ID添加到用户最后访问的位置ID列表中。
 
-			group_i = group.loc[train_inds_split[ind]]
+			group_i = group.loc[train_inds_split[ind]] 根据当前会话的索引，从原始数据中选取当前会话的数据。
 		
-			#generate data for SHAN
-			current_loc = group_i['venueid'].values
-			data_train[uid][ind]['current_loc'] = torch.LongTensor(current_loc).unsqueeze(1)
-			#group_i = whole_data
-		#generate data for my methods. X,Y,time,userid
+			#generate data for SHAN 这段代码是用于为SHAN方法和开发者自己的方法生成数据的Python脚本
+			current_loc = group_i['venueid'].values 提取当前会话的位置ID。
+			data_train[uid][ind]['current_loc'] = torch.LongTensor(current_loc).unsqueeze(1) 将当前会话的位置ID转换为张量，并增加一个维度，存储在训练数据中。
+			#group_i = whole_data 
+		#generate data for my methods. X,Y,time,userid 
 			
-			current_cat = group_i['catid'].values
-			train_x.append(current_loc[:-1])
-			train_x_cat.append(current_cat[:-1])
-			train_y.append(current_loc[1:])
-			#train_hour.append(group_i['hour_48'].values[:-1])
-			train_hour.append(group_i['hour'].values[:-1])
-			train_userid.append(uid)
+			current_cat = group_i['catid'].values 提取当前会话的类别ID。
+			train_x.append(current_loc[:-1]) 将当前会话的位置ID（除了最后一个）添加到训练数据的特征列表中。
+			train_x_cat.append(current_cat[:-1]) 将当前会话的类别ID（除了最后一个）添加到训练数据的特征列表中
+			train_y.append(current_loc[1:]) 将当前会话的位置ID（除了第一个）添加到训练数据的目标列表中。
+			#train_hour.append(group_i['hour_48'].values[:-1]) 
+			train_hour.append(group_i['hour'].values[:-1]) 提取当前会话的小时信息，并添加到训练数据的特征列表中。
+			train_userid.append(uid) 将用户ID添加到训练数据的用户ID列表中。
 			
-			#train_hour_pre.append(group_i['hour'].values[-1])
+			#train_hour_pre.append(group_i['hour'].values[-1]) 
 			#train_week_pre.append(group_i['week'].values[-1])
 
-			train_hour_pre.append(group_i['hour'].values[1:])
-			train_week_pre.append(group_i['week'].values[1:])
+			train_hour_pre.append(group_i['hour'].values[1:]) 提取当前会话的小时信息（除了第一个），并添加到训练数据的小时预测特征列表中。
+			train_week_pre.append(group_i['week'].values[1:]) 提取当前会话的周信息（除了第一个），并添加到训练数据的周预测特征列表中。
 
-			train_indexs.append(group_i.index.values)
+			train_indexs.append(group_i.index.values) 将当前会话的索引添加到训练数据的索引列表中。
 
-		for ind in test_id:
+		for ind in test_id: 遍历测试数据的索引。
 
-			data_test[uid][ind] = {}
-			history_ind =[]
-			for i in range(len(train_inds_split)):
-				history_ind.extend(train_inds_split[i])
-			whole_ind = []
-			whole_ind.extend(history_ind)
-			whole_ind.extend(test_inds_split[ind-len(train_inds_split)])
+			data_test[uid][ind] = {} 为当前用户和当前索引创建一个空字典，用于存储测试数据。
+			history_ind =[] 初始化一个空列表，用于存储用户的历史会话索引
+			for i in range(len(train_inds_split)): 遍历训练数据的会话索引。
+				history_ind.extend(train_inds_split[i]) 将每个训练会话的索引添加到历史会话索引列表中。
+			whole_ind = [] 初始化一个空列表，用于存储整个会话的索引。
+			whole_ind.extend(history_ind) 将历史会话索引添加到整个会话索引列表中。
+			whole_ind.extend(test_inds_split[ind-len(train_inds_split)]) 将当前测试会话的索引添加到整个会话索引列表中。
 
-			whole_data = group.loc[whole_ind]
+			whole_data = group.loc[whole_ind] 根据整个会话的索引，从原始数据中选取相应的数据。
 
-			loc = whole_data['venueid'].values[:-1]
-			tim = whole_data['hour'].values[:-1]
-			target = group.loc[test_inds_split[ind-len(train_inds_split)][1:]]['venueid'].values
+			loc = whole_data['venueid'].values[:-1] 提取整个会话中的位置ID，并去掉最后一个位置ID。
+			tim = whole_data['hour'].values[:-1] 提取整个会话中的小时信息，并去掉最后一个小时。
+			target = group.loc[test_inds_split[ind-len(train_inds_split)][1:]]['venueid'].values 提取当前测试会话中下一个位置ID作为目标位置。
 
-			#loc = group_i['venueid'].values[:-1]
+			#loc = group_i['venueid'].values[:-1] 
 			#tim = get_day(group_i['time'].values)[1][:-1]
 			#target = group_i['venueid'].values[-10:]
 
-			data_test[uid][ind]['loc'] = torch.LongTensor(loc).unsqueeze(1)
-			data_test[uid][ind]['tim'] = torch.LongTensor(tim).unsqueeze(1)
-			data_test[uid][ind]['target'] = torch.LongTensor(target)
+			data_test[uid][ind]['loc'] = torch.LongTensor(loc).unsqueeze(1) 将位置ID转换为张量，并增加一个维度，存储在测试数据中。
+			data_test[uid][ind]['tim'] = torch.LongTensor(tim).unsqueeze(1) 将小时信息转换为张量，并增加一个维度，存储在测试数据中。
+			data_test[uid][ind]['target'] = torch.LongTensor(target) 将目标位置ID转换为张量，存储在测试数据中。
 
-			user_lastid[uid].append(loc[-1])
+			user_lastid[uid].append(loc[-1]) 将当前会话的最后一个位置ID添加到用户最后访问的位置ID列表中。
 
 			#group_i = whole_data
 
-			group_i = group.loc[test_inds_split[ind-len(train_inds_split)]]
+			group_i = group.loc[test_inds_split[ind-len(train_inds_split)]] 根据当前测试会话的索引，从原始数据中选取当前测试会话的数据。
 
-			current_loc = group_i['venueid'].values
-			data_test[uid][ind]['current_loc'] = torch.LongTensor(current_loc).unsqueeze(1)
+			current_loc = group_i['venueid'].values 提取当前测试会话的位置ID。
+			data_test[uid][ind]['current_loc'] = torch.LongTensor(current_loc).unsqueeze(1) 将当前测试会话的位置ID转换为张量，并增加一个维度，存储在测试数据中。
+			current_cat = group_i['catid'].values 提取当前测试会话的类别ID。
+			test_x_cat.append(current_cat[:-1]) 将当前测试会话的类别ID（除了最后一个）添加到测试数据的特征列表中
+			test_x.append(current_loc[:-1]) 将当前测试会话的位置ID（除了最后一个）添加到测试数据的特征列表中。
+			test_y.append(current_loc[1:]) 将当前测试会话的位置ID（除了第一个）添加到测试数据的目标列表中。
+			#test_hour.append(group_i['hour_48'].values[:-1]) 
+			test_hour.append(group_i['hour'].values[:-1]) 提取当前测试会话的小时信息，并添加到测试数据的特征列表中。
+			test_userid.append(uid) 将用户ID添加到测试数据的用户ID列表中。
 
-			current_cat = group_i['catid'].values
-			test_x_cat.append(current_cat[:-1])
-			test_x.append(current_loc[:-1])
-			test_y.append(current_loc[1:])
-			#test_hour.append(group_i['hour_48'].values[:-1])
-			test_hour.append(group_i['hour'].values[:-1])
-			test_userid.append(uid)
-
-			#test_hour_pre.append(group_i['hour'].values[-1])
+			#test_hour_pre.append(group_i['hour'].values[-1]) 
 			#test_week_pre.append(group_i['week'].values[-1])
 
-			test_hour_pre.append(group_i['hour'].values[1:])
-			test_week_pre.append(group_i['week'].values[1:])
+			test_hour_pre.append(group_i['hour'].values[1:]) 提取当前测试会话的小时信息（除了第一个），并添加到测试数据的小时预测特征列表中。
+			test_week_pre.append(group_i['week'].values[1:]) 提取当前测试会话的周信息（除了第一个），并添加到测试数据的周预测特征列表中。
+ 
+			test_indexs.append(group_i.index.values) 将当前测试会话的索引添加到测试数据的索引列表中。
 
-			test_indexs.append(group_i.index.values)
 
-
-	with open('data_train.pk','wb') as f:
+	with open('data_train.pk','wb') as f: 用 pickle 库将 data_train 字典保存到文件 data_train.pk 中。
 		pickle.dump(data_train,f)
 
 	with open('data_test.pk','wb') as f:
@@ -338,17 +337,17 @@ def sliding_varlen(data,batch_size):#定义了一个名为 sliding_varlen 的函
 	with open('test_idx.pk','wb') as f:
 		pickle.dump(test_idx,f)
 
-	print('user_num: ',len(data_train.keys()))
-	#minMax = MinMaxScaler()
+	print('user_num: ',len(data_train.keys())) 打印训练数据中用户的数量。
+	#minMax = MinMaxScaler()注释掉的代码是用于对长期特征进行最小最大归一化的，但这部分代码被注释掉了，所以不会执行
 	#long_term_feature = minMax.fit_transform(np.array(long_term_feature))
 
-	with open('long_term.pk','wb') as f:
+	with open('long_term.pk','wb') as f: 将 long_term 字典保存到文件 long_term.pk 中。
 		pickle.dump(long_term,f)
 
-	#with open('long_term_feature.pk','wb') as f:
+	#with open('long_term_feature.pk','wb') as f: 注释掉的代码是用于保存长期特征的，但这部分代码被注释掉了，所以不会执行。
 	#	pickle.dump(long_term_feature,f)
-
-	def dataloader(X,X_cat,Y,hour,userid,hour_pre,week_pre):
+        定义一个 dataloader 函数，该函数接受多个参数并创建一个 TensorDataset，然后使用 DataLoader 来批量加载数据，是否打乱数据由 shuffle 参数控制。
+ 	def dataloader(X,X_cat,Y,hour,userid,hour_pre,week_pre):
 		
 		torch_dataset = Data.TensorDataset(torch.LongTensor(X),torch.LongTensor(X_cat),torch.LongTensor(Y),torch.LongTensor(hour),torch.LongTensor(userid),torch.LongTensor(hour_pre),torch.LongTensor(week_pre))
 		loader = Data.DataLoader(
@@ -358,15 +357,16 @@ def sliding_varlen(data,batch_size):#定义了一个名为 sliding_varlen 的函
 			num_workers = 0,
 		)
 		return loader
-
+         使用 dataloader 函数创建训练数据加载器 loader_train。
 	loader_train = dataloader(train_x,train_x_cat,train_y,train_hour,train_userid,train_hour_pre,train_week_pre)
+        使用 dataloader 函数创建测试数据加载器 loader_test。
 	loader_test = dataloader(test_x,test_x_cat,test_y,test_hour,test_userid,test_hour_pre,test_week_pre)
-
+        创建一个 pre_data 字典，包含数据的大小信息、训练数据加载器和测试数据加载器。
 	pre_data = {}
 	pre_data['size'] = [vocab_size_poi,vocab_size_cat,vocab_size_user,len(train_x),len(test_x)]
 	pre_data['loader_train'] = loader_train
 	pre_data['loader_test'] = loader_test
-
+        将 pre_data 字典保存到文件 pre_data.txt 中。
 	with open('pre_data.txt','wb') as f:
 		pickle.dump(pre_data,f)
 	return pre_data
