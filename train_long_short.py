@@ -190,35 +190,37 @@ for epoch in range(num_epochs): 开始训练循环，num_epochs 是训练的轮�
         poi_candidate = list(range(vocab_poi + 1)) 创建一个包含所有POI候选项的列表。
         poi_candi = Variable(torch.LongTensor(poi_candidate)).cuda() 将POI候选项转换为长整型张量并移动到GPU上。
         cat_candi = Variable(cat_candi).cuda() 将类别候选项转换为变量并移动到GPU上。
-        outputs = Model(   将输入数据传递给模型，获取模型的输出。
+        outputs = Model(   将输入数据传递给模型，获取模型的输出。 batch_x：这通常是一批输入特征，可能是数值型的，用于模型的前向传播。这些特征可能包括用户的行为数据、上下文信息等batch_x_cat：这可能是一批分类特征（categorical features），这些特征通常是非数值型的，需要通过独热编码（one-hot encoding）或其他编码方式转换为数值型数据。
             batch_x, batch_x_cat, users, hourids, hour_pre, week_pre, poi_candi, cat_candi
         )  
 
         loss = 0 初始化损失为
-        for i in range(batch_x.size(0)):
+        for i in range(batch_x.size(0)): 对每个批次中的每个样本计算损失，并累加到loss变量中。这里batch_x.size(0)获取批次大小，loss_function是定义好的损失函数。
             loss += loss_function(outputs[i, :, :], batch_y[i, :]).cuda()
 
-        loss.backward()
+        loss.backward()  #loss.backward()计算梯度，optimizer.step()根据梯度更新模型参数。
         optimizer.step()
 
-        total_loss += float(loss)
+        total_loss += float(loss) 将当前批次的损失转换为Python的float类型并累加到total_loss。
 
-        outputs2 = outputs[:, -1, :]
-        batch_y2 = batch_y[:, -1]
+        outputs2 = outputs[:, -1, :]  提取模型输出和实际标签的最后一个时间步的数据，用于评估指标的计算。
+        batch_y2 = batch_y[:, -1]  
 
-        out_p, indices = torch.sort(outputs2, dim=1, descending=True)
-        count = float(len_train)
+        out_p, indices = torch.sort(outputs2, dim=1, descending=True) 对最后一个时间步的输出进行排序，得到预测的概率和对应的索引。
+        
+        #计算不同阈值下的精确度（precision）指标。这些指标分别在预测结果的前1、5、10、20个位置中计算实际标签的出现次数。
+        count = float(len_train) 
         delta_dist = 0
         precision_1 += precision(indices, batch_y2, 1, count, delta_dist)
         precision_5 += precision(indices, batch_y2, 5, count, delta_dist)
         precision_10 += precision(indices, batch_y2, 10, count, delta_dist)
         precision_20 += precision(indices, batch_y2, 20, count, delta_dist)
-
+        #计算不同阈值下的平均精度均值（Mean Average Precision, MAP）。
         MAP_1 += MAP(indices, batch_y2, 1, count)
         MAP_5 += MAP(indices, batch_y2, 5, count)
         MAP_10 += MAP(indices, batch_y2, 10, count)
         MAP_20 += MAP(indices, batch_y2, 20, count)
-
+    #打印训练过程中的各种指标，包括epoch、损失、精确度和MAP。
     print(
         "train:",
         "epoch: [{}/{}]\t".format(epoch, num_epochs),
@@ -232,18 +234,18 @@ for epoch in range(num_epochs): 开始训练循环，num_epochs 是训练的轮�
         "MAP@10: {:.4f}\t".format(MAP_10),
         "MAP@20: {:.4f}\t".format(MAP_20),
     )
-
+   检查保存模型权重的目录是否存在，如果不存在，则创建该目录。
     savedir = "checkpoint_file/checkpoint_" + run_name  
     if not os.path.exists(savedir):    
         os.makedirs(savedir)
     savename = savedir + "/checkpoint" + "_" + str(epoch) + ".tar"  
 
-    torch.save({"epoch": epoch + 1, "state_dict": Model.state_dict(),}, savename) 
+    torch.save({"epoch": epoch + 1, "state_dict": Model.state_dict(),}, savename)  保存模型的权重和epoch信息，以便后续可以恢复训练。
     
-    if epoch % 1 == 0:
+    if epoch % 1 == 0:  每经过一个epoch，将模型设置为评估模式。
 
-        Model = Model.eval()
-
+        Model = Model.eval() 
+       #初始化验证过程中的损失和性能指标。
         total_loss = 0.0
 
         precision_1 = 0
@@ -256,41 +258,41 @@ for epoch in range(num_epochs): 开始训练循环，num_epochs 是训练的轮�
         MAP_10 = 0
         MAP_20 = 0
 
-        for step, (batch_x, batch_x_cat, batch_y, hours, batch_userid, hour_pre, week_pre) in enumerate(loader_test):
-            Model.zero_grad()
-            hourids = hours.long()
-            users = batch_userid
+        for step, (batch_x, batch_x_cat, batch_y, hours, batch_userid, hour_pre, week_pre) in enumerate(loader_test):  这行代码开始遍历测试数据加载器loader_test中的批次。step是当前的步数（批次索引），batch_x等变量包含了当前批次的数据。
+            Model.zero_grad()  在每次迭代开始时，清除模型参数的梯度。这是因为在训练过程中，梯度会在每次反向传播后累积，而在验证过程中我们不需要更新模型参数，因此需要清零梯度
+            hourids = hours.long() 将小时数据转换为长整型（long）
+            users = batch_userid 将用户ID数据赋值给users变量。
 
-            batch_x, batch_x_cat, batch_y, hour_pre, week_pre = (
-                Variable(batch_x).cuda(),
+            batch_x, batch_x_cat, batch_y, hour_pre, week_pre = (  将输入数据转换为Variable对象（在PyTorch的新版本中应该是torch.Tensor），并移动到GPU上。这些数据将被用作模型的输入。
+                Variable(batch_x).cuda(), 
                 Variable(batch_x_cat).cuda(),
                 Variable(batch_y).cuda(),
                 Variable(hour_pre.long()).cuda(),
                 Variable(week_pre.long()).cuda(),
             )
-            users = Variable(users).cuda()
-            hourids = Variable(hourids).cuda()
+            users = Variable(users).cuda() 将用户ID数据封装为Variable对象，并移动到GPU上。
+            hourids = Variable(hourids).cuda() 将小时ID数据封装为Variable对象，并移动到GPU上。
 
-            outputs = Model(
+            outputs = Model(   将处理好的输入数据传递给模型，获取模型的输出。Model是定义的模型对象，batch_x等参数包括处理过的用户ID、小时ID、输入特征等。
                 batch_x, batch_x_cat, users, hourids, hour_pre, week_pre, poi_candi, cat_candi
             ) 
-            loss = 0
-            for i in range(batch_x.size(0)):
-                loss += loss_function(outputs[i, :, :], batch_y[i, :])
+            loss = 0  初始化损失变量为0。
+            for i in range(batch_x.size(0)): 遍历当前批次中的所有样本。
+                loss += loss_function(outputs[i, :, :], batch_y[i, :]) 对于每个样本，使用loss_function计算模型输出outputs和真实标签batch_y之间的损失。
 
-            total_loss += float(loss)
+            total_loss += float(loss) 将当前批次的损失转换为Python的float类型，并累加到total_loss变量中。total_loss用于在验证过程结束后计算整个验证集上的平均损失。
 
-            outputs2 = outputs[:, -1, :]
-            batch_y2 = batch_y[:, -1]
+            outputs2 = outputs[:, -1, :] 从模型输出outputs中提取最后一个时间步的数据
+            batch_y2 = batch_y[:, -1] 从真实标签batch_y中提取最后一个时间步的数据。
 
-            weights_output = outputs2.data
+            weights_output = outputs2.data 提取outputs2张量中的原始数据。
 
-            outputs2 = weights_output  # +weights_classify# + weights_comatrix +weights_hour_prob
-            out_p, indices = torch.sort(outputs2, dim=1, descending=True)
+            outputs2 = weights_output  # +weights_classify# + weights_comatrix +weights_hour_prob   将outputs2张量中的原始数据赋值回outputs2变量。注释中的# +weights_classify# + weights_comatrix +weights_hour_prob可能表示在某些情况下，这里会加上其他权重或偏差项，但在当前代码中这些项并未被使用。
+            out_p, indices = torch.sort(outputs2, dim=1, descending=True) 对outputs2张量进行排序，得到预测概率out_p和对应的索引indices。dim=1表示沿着输出的第二个维度（即每个样本的预测结果）进行排序。descending=True表示按降序排序。
 
-            count = float(len_test)
+            count = float(len_test) 设置count变量为测试集的样本总数。
 
-            precision_1 += precision(indices, batch_y2, 1, count, delta_dist)
+            precision_1 += precision(indices, batch_y2, 1, count, delta_dist) 计算并累加精确度@1指标。精确度@1表示在预测结果的前1个位置中，实际标签出现的次数占测试集样本总数的比例
             precision_5 += precision(indices, batch_y2, 5, count, delta_dist)
             precision_10 += precision(indices, batch_y2, 10, count, delta_dist)
             precision_20 += precision(indices, batch_y2, 20, count, delta_dist)
@@ -299,7 +301,7 @@ for epoch in range(num_epochs): 开始训练循环，num_epochs 是训练的轮�
             MAP_5 += MAP(indices, batch_y2, 5, count)
             MAP_10 += MAP(indices, batch_y2, 10, count)
             MAP_20 += MAP(indices, batch_y2, 20, count)
-
+        打印验证集上的损失、精确度和MAP指标。
         print(
             "val:",
             "loss: {:.4f}\t".format(total_loss),
